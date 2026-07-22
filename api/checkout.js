@@ -1,12 +1,19 @@
 module.exports = async function handler(req, res) {
+    // Tam Kapsamlı CORS Başlıkları
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, PATCH, DELETE, POST, PUT');
+    res.setHeader(
+        'Access-Control-Allow-Headers',
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    );
 
+    // OPTIONS (Preflight) İsteğini Hemen Onayla
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
 
+    // Parametreleri POST Body veya GET Query içerisinden al
     const { price, orderId } = req.body || req.query || {};
 
     if (!price) {
