@@ -12,7 +12,7 @@ module.exports = async function handler(req, res) {
         return res.status(200).end();
     }
 
-    // Modern WHATWG URL Yapılandırması ile Query / Body Parametre Okuma
+    // Modern WHATWG URL Yapılandırması ile Parametre Okuma
     let price;
     let orderId;
 
