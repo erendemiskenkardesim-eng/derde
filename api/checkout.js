@@ -1,13 +1,15 @@
-export default async function handler(req, res) {
-    // CORS Başlıkları
+module.exports = async function handler(req, res) {
+    // CORS Başlıkları (Komerza ve diğer kaynaklardan gelen isteklere izin verir)
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+    // OPTIONS (Preflight) isteklerini hemen yanıtla
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
 
+    // Parametreleri al
     const { price, orderId } = req.body || req.query || {};
 
     if (!price) {
@@ -34,4 +36,4 @@ export default async function handler(req, res) {
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });
     }
-}
+};
