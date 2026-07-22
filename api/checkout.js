@@ -1,4 +1,6 @@
 const https = require('https');
+const http = require('http');
+const { URL } = require('url');
 
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -42,17 +44,18 @@ module.exports = async function handler(req, res) {
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
-    // Dokümana tam uygun format: amount TRY cinsinden gidiyor
     const postData = JSON.stringify({
         api_key: BOTPAY_API_KEY,
         amount: parseFloat(price),
         description: "Sipariş ID: " + (orderId || Date.now())
     });
 
+    const targetUrl = new URL('https://capsule-swerve-crystal.ngrok-free.dev/api/v1/create-payment');
+
     const options = {
-        hostname: 'api.botpay.com',
+        hostname: targetUrl.hostname,
         port: 443,
-        path: '/api/v1/create-payment',
+        path: targetUrl.pathname,
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -71,8 +74,6 @@ module.exports = async function handler(req, res) {
             botpayRes.on('end', () => {
                 try {
                     const jsonResponse = JSON.parse(data);
-                    
-                    // Dokümana göre başarılı yanıtta 'payment_url' dönüyor
                     const paymentUrl = jsonResponse.payment_url;
                     
                     if (botpayRes.statusCode >= 200 && botpayRes.statusCode < 300 && paymentUrl) {
