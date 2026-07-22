@@ -13,9 +13,9 @@ module.exports = async function handler(req, res) {
         return res.status(200).end();
     }
 
-    let price;
-    let orderId;
-    let currency;
+    let price = 5.00;
+    let orderId = '';
+    let currency = 'USD';
 
     try {
         let bodyData = req.body;
@@ -26,26 +26,42 @@ module.exports = async function handler(req, res) {
                 } catch (err) {}
             }
             if (typeof bodyData === 'object' && bodyData !== null) {
-                price = bodyData.price || bodyData.amount;
-                orderId = bodyData.orderId || bodyData.id || bodyData.order_id;
-                currency = bodyData.currency || bodyData.currency_code || bodyData.curr;
+                if (bodyData.price !== undefined) price = bodyData.price;
+                else if (bodyData.amount !== undefined) price = bodyData.amount;
+                
+                if (bodyData.orderId !== undefined) orderId = bodyData.orderId;
+                else if (bodyData.id !== undefined) orderId = bodyData.id;
+                else if (bodyData.order_id !== undefined) orderId = bodyData.order_id;
+                
+                if (bodyData.currency !== undefined) currency = bodyData.currency;
+                else if (bodyData.currency_code !== undefined) currency = bodyData.currency_code;
+                else if (bodyData.curr !== undefined) currency = bodyData.curr;
             }
         }
 
-        if ((!price || !currency) && req.query) {
-            if (!price) price = req.query.price || req.query.amount;
-            if (!orderId) orderId = req.query.orderId || req.query.id || req.query.order_id;
-            if (!currency) currency = req.query.currency || req.query.currency_code || req.query.curr;
+        if (req.query) {
+            if (req.query.price !== undefined || req.query.amount !== undefined) {
+                price = req.query.price !== undefined ? req.query.price : req.query.amount;
+            }
+            if (req.query.orderId !== undefined || req.query.id !== undefined || req.query.order_id !== undefined) {
+                orderId = req.query.orderId !== undefined ? req.query.orderId : (req.query.id !== undefined ? req.query.id : req.query.order_id);
+            }
+            if (req.query.currency !== undefined || req.query.currency_code !== undefined || req.query.curr !== undefined) {
+                currency = req.query.currency !== undefined ? req.query.currency : (req.query.currency_code !== undefined ? req.query.currency_code : req.query.curr);
+            }
         }
     } catch (e) {
         console.error("Parametre okuma hatasi:", e);
     }
 
     const rawPrice = parseFloat(price) || 5.00;
-    const cur = currency && typeof currency === 'string' && currency.trim() !== '' ? currency.trim().toUpperCase() : 'USD';
+    
+    // Güvenlik: Currency her halükarda dolu ve string olmalı. Boş gelirse zorla USD yapıyoruz.
+    const cur = (currency && typeof currency === 'string' && currency.trim() !== '') ? currency.trim().toUpperCase() : 'USD';
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
+    // BotPay'in beklediği %100 net ve zorunlu alanlar
     const payloadObj = {
         api_key: BOTPAY_API_KEY,
         amount: rawPrice,
@@ -70,11 +86,11 @@ module.exports = async function handler(req, res) {
         const botpayReq = https.request(options, (botpayRes) => {
             let data = '';
 
-            botpayReq.on('data', (chunk) => {
+            botpayRes.on('data', (chunk) => {
                 data += chunk;
             });
 
-            botpayReq.on('end', () => {
+            botpayRes.on('end', () => {
                 try {
                     const jsonResponse = JSON.parse(data);
                     const paymentUrl = jsonResponse.payment_url;
@@ -83,20 +99,21 @@ module.exports = async function handler(req, res) {
                         res.writeHead(302, { Location: paymentUrl });
                         res.end();
                     } else {
+                        // Komerza ekranına yansıyacak hata formatı
                         res.status(500).json({
                             success: false,
-                            message: "BotPay Redetti: " + (jsonResponse.error || jsonResponse.message || data)
+                            error: jsonResponse.error || jsonResponse.message || "BotPay istegi reddetti."
                         });
                     }
                 } catch (parseErr) {
-                    res.status(500).json({ success: false, message: "BotPay ham yanit alinamadi: " + data });
+                    res.status(500).json({ success: false, error: "BotPay ham yanit alinamadi: " + data });
                 }
                 resolve();
             });
         });
 
         botpayReq.on('error', (err) => {
-            res.status(500).json({ success: false, message: "Baglanti hatasi: " + err.message });
+            res.status(500).json({ success: false, error: "Baglanti hatasi: " + err.message });
             resolve();
         });
 
