@@ -1,7 +1,6 @@
 const https = require('https');
 const querystring = require('querystring');
 
-// Ham gelen body verisini (Stream) tam metin olarak okuma fonksiyonu
 function getRawBody(req) {
     return new Promise((resolve) => {
         let body = '';
@@ -34,7 +33,6 @@ module.exports = async function handler(req, res) {
     try {
         let parsedBody = {};
 
-        // 1. Önce Vercel'in kendi parse ettiği body var mı bak
         if (req.body) {
             if (typeof req.body === 'object') {
                 parsedBody = req.body;
@@ -42,8 +40,7 @@ module.exports = async function handler(req, res) {
                 try { parsedBody = JSON.parse(req.body); } catch (e) { parsedBody = querystring.parse(req.body); }
             }
         } 
-        
-        // 2. Eğer body boş geldiyse ham akıştan (stream) kendimiz oku
+
         if (!parsedBody || Object.keys(parsedBody).length === 0) {
             const raw = await getRawBody(req);
             if (raw) {
@@ -51,18 +48,16 @@ module.exports = async function handler(req, res) {
             }
         }
 
-        // Komerza'nın olası TÜM parametre isimlerini tara
         if (parsedBody && typeof parsedBody === 'object') {
-            price = parsedBody.price || parsedBody.amount || parsedBody.total || parsedBody.total_amount || parsedBody.sum || price;
-            orderId = parsedBody.orderId || parsedBody.id || parsedBody.order_id || parsedBody.reference || parsedBody.cart_id || orderId;
-            currency = parsedBody.currency || parsedBody.currency_code || parsedBody.curr || parsedBody.iso || parsedBody.valuta || currency;
+            price = parsedBody.price || parsedBody.amount || parsedBody.total || price;
+            orderId = parsedBody.orderId || parsedBody.id || parsedBody.order_id || orderId;
+            currency = parsedBody.currency || parsedBody.currency_code || parsedBody.curr || currency;
         }
 
-        // Query (URL) parametrelerini de tara
         if (req.query) {
-            price = req.query.price || req.query.amount || req.query.total || req.query.total_amount || price;
-            orderId = req.query.orderId || req.query.id || req.query.order_id || req.query.reference || orderId;
-            currency = req.query.currency || req.query.currency_code || req.query.curr || req.query.iso || currency;
+            price = req.query.price || req.query.amount || req.query.total || price;
+            orderId = req.query.orderId || req.query.id || req.query.order_id || orderId;
+            currency = req.query.currency || req.query.currency_code || req.query.curr || currency;
         }
     } catch (e) {
         console.error("Parametre okuma hatasi:", e);
@@ -70,13 +65,13 @@ module.exports = async function handler(req, res) {
 
     const rawPrice = parseFloat(price) || 5.00;
     
-    // Güvenlik Duvarı: currency değişkeni ne gelirse gelsin string'e çevrilir ve temizlenir.
-    // Eğer Komerza saçma veya boş bir şey yolladıysa doğrudan USD'ye sabitlenir.
+    // Komerza parametreyi doldurmazsa veya süslü parantezli '{currency}' olarak bırakırsa varsayılan olarak USD yap
     let finalCurrency = "USD";
-    if (currency && typeof currency === 'string' && currency.trim().length > 0) {
-        finalCurrency = currency.trim().toUpperCase();
-    } else if (currency && typeof currency === 'object') {
-        finalCurrency = "USD";
+    if (currency && typeof currency === 'string') {
+        const trimmed = currency.trim().toUpperCase();
+        if (trimmed.length > 0 && !trimmed.includes('{') && !trimmed.includes('}')) {
+            finalCurrency = trimmed;
+        }
     }
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
