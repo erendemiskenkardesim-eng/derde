@@ -15,26 +15,22 @@ module.exports = async function handler(req, res) {
 
     let price;
     let orderId;
-    let currency;
 
     try {
         if (req.body) {
             if (typeof req.body === 'object') {
                 price = req.body.price;
                 orderId = req.body.orderId;
-                currency = req.body.currency;
             } else if (typeof req.body === 'string') {
                 const parsed = JSON.parse(req.body);
                 price = parsed.price;
                 orderId = parsed.orderId;
-                currency = parsed.currency;
             }
         }
 
         if (!price && req.query) {
             price = req.query.price;
             orderId = req.query.orderId || req.query.id;
-            currency = req.query.currency;
         }
     } catch (e) {
         console.error("Parametre okuma hatasi:", e);
@@ -46,17 +42,17 @@ module.exports = async function handler(req, res) {
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
+    // Dokümana tam uygun format: amount TRY cinsinden gidiyor
     const postData = JSON.stringify({
         api_key: BOTPAY_API_KEY,
         amount: parseFloat(price),
-        currency: currency || "usd",
-        description: "Order #" + (orderId || Date.now())
+        description: "Sipariş ID: " + (orderId || Date.now())
     });
 
     const options = {
         hostname: 'api.botpay.com',
         port: 443,
-        path: '/api/v1/create-link',
+        path: '/api/v1/create-payment',
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -76,8 +72,8 @@ module.exports = async function handler(req, res) {
                 try {
                     const jsonResponse = JSON.parse(data);
                     
-                    // BotPay basarili link döndüyse, kullanıcıyı direkt o linke yönlendir (302 Redirect)
-                    const paymentUrl = jsonResponse.payment_url || jsonResponse.url || jsonResponse.link;
+                    // Dokümana göre başarılı yanıtta 'payment_url' dönüyor
+                    const paymentUrl = jsonResponse.payment_url;
                     
                     if (botpayRes.statusCode >= 200 && botpayRes.statusCode < 300 && paymentUrl) {
                         res.writeHead(302, { Location: paymentUrl });
@@ -85,11 +81,11 @@ module.exports = async function handler(req, res) {
                     } else {
                         res.status(500).json({
                             success: false,
-                            message: "BotPay Yaniti: " + (jsonResponse.message || data)
+                            message: "BotPay Redetti: " + (jsonResponse.message || data)
                         });
                     }
                 } catch (parseErr) {
-                    res.status(500).json({ success: false, message: "BotPay ham yanit cozumlenemedi: " + data });
+                    res.status(500).json({ success: false, message: "BotPay ham yanit alinamadi: " + data });
                 }
                 resolve();
             });
