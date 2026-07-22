@@ -41,11 +41,11 @@ module.exports = async function handler(req, res) {
     }
 
     const rawPrice = parseFloat(price) || 5.00;
-    const cur = (currency || "usd").toUpperCase();
+    const cur = (currency || "USD").toUpperCase();
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
-    // BotPay düzeltmeyi yaptıktan sonra fiyatı ve para birimini direkt olduğu gibi iletiyoruz
+    // Yetkilinin belirttiği gibi para birimini (currency) ve tutarı doğrudan payload'a ekliyoruz
     const payloadObj = {
         api_key: BOTPAY_API_KEY,
         amount: rawPrice,
