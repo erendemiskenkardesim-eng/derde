@@ -1,20 +1,39 @@
 module.exports = async function handler(req, res) {
-    // Tam Kapsamlı CORS Başlıkları
+    // CORS Başlıkları
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, PATCH, DELETE, POST, PUT');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, POST');
     res.setHeader(
         'Access-Control-Allow-Headers',
         'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
     );
 
-    // OPTIONS (Preflight) İsteğini Hemen Onayla
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
 
-    // Parametreleri POST Body veya GET Query içerisinden al
-    const { price, orderId } = req.body || req.query || {};
+    // Modern WHATWG URL Yapılandırması ile Query / Body Parametre Okuma
+    let price;
+    let orderId;
+
+    try {
+        if (req.body && typeof req.body === 'object') {
+            price = req.body.price;
+            orderId = req.body.orderId;
+        } else if (req.body && typeof req.body === 'string') {
+            const parsedBody = JSON.parse(req.body);
+            price = parsedBody.price;
+            orderId = parsedBody.orderId;
+        }
+
+        if (!price && req.url) {
+            const fullUrl = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
+            price = fullUrl.searchParams.get('price');
+            orderId = fullUrl.searchParams.get('orderId') || fullUrl.searchParams.get('id');
+        }
+    } catch (e) {
+        console.error("Parametre okuma hatasi:", e);
+    }
 
     if (!price) {
         return res.status(400).json({ success: false, message: "Missing price parameter" });
