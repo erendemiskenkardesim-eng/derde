@@ -22,31 +22,31 @@ module.exports = async function handler(req, res) {
             if (typeof req.body === 'object') {
                 price = req.body.price;
                 orderId = req.body.orderId;
-                currency = req.body.currency;
+                currency = req.body.currency || req.body.currency_code || req.body.curr;
             } else if (typeof req.body === 'string') {
                 const parsed = JSON.parse(req.body);
                 price = parsed.price;
                 orderId = parsed.orderId;
-                currency = parsed.currency;
+                currency = parsed.currency || parsed.currency_code || parsed.curr;
             }
         }
 
         if (!price && req.query) {
             price = req.query.price;
             orderId = req.query.orderId || req.query.id;
-            currency = req.query.currency;
+            currency = req.query.currency || req.query.currency_code || req.query.curr;
         }
     } catch (e) {
         console.error("Parametre okuma hatasi:", e);
     }
 
-    // Komerza'dan gelen orijinal fiyat ve para birimi
     const rawPrice = parseFloat(price) || 5.00;
-    const cur = (currency || "USD").toUpperCase();
+    
+    // Eğer Komerza'dan para birimi gelmezse varsayılan olarak USD alıyoruz
+    const cur = (currency ? String(currency) : "USD").toUpperCase();
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
-    // Yeni BotPay Dokümantasyonuna uygun JSON Payload yapısı
     const payloadObj = {
         api_key: BOTPAY_API_KEY,
         amount: rawPrice,
@@ -57,7 +57,7 @@ module.exports = async function handler(req, res) {
     const postData = JSON.stringify(payloadObj);
 
     const options = {
-        hostname: 'capsule-swerve-crystal.ngrok-free.dev', // Yeni dokümandaki güncel API adresi
+        hostname: 'capsule-swerve-crystal.ngrok-free.dev',
         port: 443,
         path: '/api/v1/create-payment',
         method: 'POST',
