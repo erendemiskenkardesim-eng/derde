@@ -1,7 +1,6 @@
 const https = require('https');
 
 module.exports = async function handler(req, res) {
-    // Tam Kapsamlı CORS Başlıkları
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, POST');
@@ -10,12 +9,10 @@ module.exports = async function handler(req, res) {
         'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
     );
 
-    // OPTIONS (Preflight) İsteğini Yanıtla
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
 
-    // Parametre Yakalama (Body ve Query)
     let price;
     let orderId;
     let currency;
@@ -40,7 +37,7 @@ module.exports = async function handler(req, res) {
             currency = req.query.currency;
         }
     } catch (e) {
-        console.error("Parametre parsing hatasi:", e);
+        console.error("Parametre okuma hatasi:", e);
     }
 
     if (!price) {
@@ -49,7 +46,7 @@ module.exports = async function handler(req, res) {
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
-    // BotPay'in Tam Olarak Beklediği JSON Gövdesi
+    // Kılavuzdaki /create-link komutuna uygun endpoint ve payload yapısı
     const postData = JSON.stringify({
         api_key: BOTPAY_API_KEY,
         amount: parseFloat(price),
@@ -60,7 +57,7 @@ module.exports = async function handler(req, res) {
     const options = {
         hostname: 'api.botpay.com',
         port: 443,
-        path: '/api/v1/create-payment',
+        path: '/api/v1/create-link',
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
