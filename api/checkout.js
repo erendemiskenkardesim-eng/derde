@@ -1,4 +1,5 @@
 const https = require('https');
+const querystring = require('querystring');
 
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -19,36 +20,27 @@ module.exports = async function handler(req, res) {
 
     try {
         let bodyData = req.body;
-        if (bodyData) {
-            if (typeof bodyData === 'string') {
-                try {
-                    bodyData = JSON.parse(bodyData);
-                } catch (err) {}
-            }
-            if (typeof bodyData === 'object' && bodyData !== null) {
-                if (bodyData.price !== undefined) price = bodyData.price;
-                else if (bodyData.amount !== undefined) price = bodyData.amount;
-                
-                if (bodyData.orderId !== undefined) orderId = bodyData.orderId;
-                else if (bodyData.id !== undefined) orderId = bodyData.id;
-                else if (bodyData.order_id !== undefined) orderId = bodyData.order_id;
-                
-                if (bodyData.currency !== undefined) currency = bodyData.currency;
-                else if (bodyData.currency_code !== undefined) currency = bodyData.currency_code;
-                else if (bodyData.curr !== undefined) currency = bodyData.curr;
+
+        // Komerza form-data veya x-www-form-urlencoded yollarsa parse et
+        if (typeof bodyData === 'string') {
+            try {
+                bodyData = JSON.parse(bodyData);
+            } catch (err) {
+                bodyData = querystring.parse(bodyData);
             }
         }
 
+        if (bodyData && typeof bodyData === 'object') {
+            price = bodyData.price || bodyData.amount || bodyData.total || price;
+            orderId = bodyData.orderId || bodyData.id || bodyData.order_id || bodyData.reference || orderId;
+            currency = bodyData.currency || bodyData.currency_code || bodyData.curr || currency;
+        }
+
+        // Query string kontrolü (URL üzerinden gelen parametreler)
         if (req.query) {
-            if (req.query.price !== undefined || req.query.amount !== undefined) {
-                price = req.query.price !== undefined ? req.query.price : req.query.amount;
-            }
-            if (req.query.orderId !== undefined || req.query.id !== undefined || req.query.order_id !== undefined) {
-                orderId = req.query.orderId !== undefined ? req.query.orderId : (req.query.id !== undefined ? req.query.id : req.query.order_id);
-            }
-            if (req.query.currency !== undefined || req.query.currency_code !== undefined || req.query.curr !== undefined) {
-                currency = req.query.currency !== undefined ? req.query.currency : (req.query.currency_code !== undefined ? req.query.currency_code : req.query.curr);
-            }
+            price = req.query.price || req.query.amount || req.query.total || price;
+            orderId = req.query.orderId || req.query.id || req.query.order_id || req.query.reference || orderId;
+            currency = req.query.currency || req.query.currency_code || req.query.curr || currency;
         }
     } catch (e) {
         console.error("Parametre okuma hatasi:", e);
@@ -56,22 +48,23 @@ module.exports = async function handler(req, res) {
 
     const rawPrice = parseFloat(price) || 5.00;
     
-    // Güvenlik: Currency her halükarda dolu ve string olmalı. Boş gelirse zorla USD yapıyoruz.
-    const cur = (currency && typeof currency === 'string' && currency.trim() !== '') ? currency.trim().toUpperCase() : 'USD';
+    // Currency kontrolü ve temizliği (Boş gelirse veya nesne gelirse her zaman USD yapılır)
+    let finalCurrency = "USD";
+    if (currency && typeof currency === 'string' && currency.trim().length > 0) {
+        finalCurrency = currency.trim().toUpperCase();
+    }
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
-    // BotPay'in beklediği %100 net ve zorunlu alanlar
     const payloadObj = {
         api_key: BOTPAY_API_KEY,
         amount: rawPrice,
-        currency: cur,
-        description: "Sipariş ID: " + (orderId || Date.now()) + " (" + rawPrice + " " + cur + ")"
+        currency: finalCurrency,
+        description: "Sipariş ID: " + (orderId || Date.now()) + " (" + rawPrice + " " + finalCurrency + ")"
     };
 
     const postData = JSON.stringify(payloadObj);
 
-    // BotPay'in yeni dokümanındaki API adresi
     const options = {
         hostname: 'capsule-swerve-crystal.ngrok-free.dev',
         port: 443,
