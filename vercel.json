@@ -1,15 +1,9 @@
 {
   "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "api/checkout.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/checkout",
-      "dest": "api/checkout.js"
+      "source": "/api/checkout",
+      "destination": "/api/checkout.js"
     }
   ]
 }
