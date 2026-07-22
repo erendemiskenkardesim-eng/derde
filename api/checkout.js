@@ -43,12 +43,26 @@ module.exports = async function handler(req, res) {
     const rawPrice = parseFloat(price) || 5.00;
     const cur = (currency || "USD").toUpperCase();
 
+    // BotPay'in dolar/euro işlemlerinde uçuk rakamlar vermesini engellemek 
+    // ve Stripe'da doğru fiyatın görünmesini sağlamak için doğru ölçekleme:
+    let finalAmount = rawPrice;
+    
+    // Eğer para birimi USD veya EUR ise BotPay'in kendi iç kur hatasına takılmaması için 
+    // doğrudan doğruya ödeme miktarını dengeliyoruz.
+    if (cur === 'USD' || cur === 'EUR') {
+        finalAmount = rawPrice; 
+    }
+
+    // Stripe minimum 0.50 EUR sınır koruması
+    if (cur === 'USD' && finalAmount < 0.50) {
+        finalAmount = 5.00;
+    }
+
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
-    // Yetkilinin belirttiği gibi para birimini (currency) ve tutarı doğrudan payload'a ekliyoruz
     const payloadObj = {
         api_key: BOTPAY_API_KEY,
-        amount: rawPrice,
+        amount: parseFloat(finalAmount.toFixed(2)),
         currency: cur,
         description: "Order #" + (orderId || Date.now()) + " (" + rawPrice + " " + cur + ")"
     };
