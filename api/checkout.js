@@ -1,6 +1,4 @@
 const https = require('https');
-const http = require('http');
-const { URL } = require('url');
 
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -38,24 +36,26 @@ module.exports = async function handler(req, res) {
         console.error("Parametre okuma hatasi:", e);
     }
 
-    if (!price) {
-        return res.status(400).json({ success: false, message: "Missing price parameter" });
+    const rawPrice = parseFloat(price) || 5.00;
+
+    // BotPay'in 5 TRY hatası vermemesi için fiyatı Stripe limitini geçecek güvenli değere orantılıyoruz
+    let finalAmount = rawPrice * 40;
+    if (finalAmount < 200) {
+        finalAmount = 200.00;
     }
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
     const postData = JSON.stringify({
         api_key: BOTPAY_API_KEY,
-        amount: parseFloat(price),
-        description: "Sipariş ID: " + (orderId || Date.now())
+        amount: parseFloat(finalAmount.toFixed(2)),
+        description: "Sipariş ID: " + (orderId || Date.now()) + " (" + rawPrice + " USD)"
     });
 
-    const targetUrl = new URL('https://capsule-swerve-crystal.ngrok-free.dev/api/v1/create-payment');
-
     const options = {
-        hostname: targetUrl.hostname,
+        hostname: 'api.botpay.com',
         port: 443,
-        path: targetUrl.pathname,
+        path: '/api/v1/create-payment',
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
