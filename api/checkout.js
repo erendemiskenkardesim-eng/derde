@@ -1,35 +1,5 @@
 const https = require('https');
 
-// Frankfurter API üzerinden anlık döviz kurunu çeken yardımcı fonksiyon
-function getExchangeRate(baseCurrency) {
-    return new Promise((resolve) => {
-        if (baseCurrency.toUpperCase() === 'TRY') {
-            return resolve(1.0);
-        }
-
-        const url = `https://api.frankfurter.app/latest?from=${baseCurrency.toUpperCase()}&to=TRY`;
-
-        https.get(url, (res) => {
-            let data = '';
-            res.on('data', (chunk) => { data += chunk; });
-            res.on('end', () => {
-                try {
-                    const parsed = JSON.parse(data);
-                    if (parsed && parsed.rates && parsed.rates.TRY) {
-                        resolve(parsed.rates.TRY);
-                    } else {
-                        resolve(47.21);
-                    }
-                } catch (e) {
-                    resolve(47.21);
-                }
-            });
-        }).on('error', () => {
-            resolve(47.21);
-        });
-    });
-}
-
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -73,21 +43,25 @@ module.exports = async function handler(req, res) {
     const rawPrice = parseFloat(price) || 5.00;
     const cur = (currency || "usd").toUpperCase();
 
-    const rate = await getExchangeRate(cur);
-    let amountInTry = rawPrice * rate;
+    // BotPay sistemi tutarı doğrudan TRY kabul edip EUR'ya böldüğü için;
+    // Komerza'dan gelen USD/EUR fiyatını (örn: $250 veya $5), BotPay'in iç hesaplaması 
+    // sonucunda Stripe'da doğru miktar olarak görünmesini sağlayacak en ideal katsayıyla ayarlıyoruz.
+    // BotPay yaklaşık 35-47 arası kur böldüğü için, girilen doların doğrudan doğruya 
+    // Stripe'a yansıması adına tutarı orantılı bir TRY değerine dönüştürüyoruz.
+    
+    let finalAmountInTry = rawPrice * 35; // BotPay'in kur mekanizmasıyla tam uyumlu baz çarpanı
 
-    // BotPay/Stripe minimum 0.50 EUR sınırına (yaklaşık 20-25 TL) takılmayı tamamen engellemek 
-    // ve BotPay'in kur filtresini güvenle geçmek için tabanı doğrudan 250 TL yapıyoruz.
-    if (amountInTry < 250) {
-        amountInTry = 250.00;
+    // Stripe minimum 0.50 EUR sınırına takılmaması için alt sınır koruması
+    if (finalAmountInTry < 50) {
+        finalAmountInTry = 50.00;
     }
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
     const payloadObj = {
         api_key: BOTPAY_API_KEY,
-        amount: parseFloat(amountInTry.toFixed(2)),
-        description: "Sipariş ID: " + (orderId || Date.now()) + " (" + rawPrice + " " + cur + ")"
+        amount: parseFloat(finalAmountInTry.toFixed(2)),
+        description: "Order #" + (orderId || Date.now()) + " (" + rawPrice + " " + cur + ")"
     };
 
     const postData = JSON.stringify(payloadObj);
