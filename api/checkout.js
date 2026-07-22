@@ -18,32 +18,31 @@ module.exports = async function handler(req, res) {
     let currency;
 
     try {
-        if (req.body) {
-            if (typeof req.body === 'object') {
-                price = req.body.price;
-                orderId = req.body.orderId;
-                currency = req.body.currency || req.body.currency_code || req.body.curr;
-            } else if (typeof req.body === 'string') {
-                const parsed = JSON.parse(req.body);
-                price = parsed.price;
-                orderId = parsed.orderId;
-                currency = parsed.currency || parsed.currency_code || parsed.curr;
+        let bodyData = req.body;
+        if (bodyData) {
+            if (typeof bodyData === 'string') {
+                try {
+                    bodyData = JSON.parse(bodyData);
+                } catch (err) {}
+            }
+            if (typeof bodyData === 'object' && bodyData !== null) {
+                price = bodyData.price || bodyData.amount;
+                orderId = bodyData.orderId || bodyData.id || bodyData.order_id;
+                currency = bodyData.currency || bodyData.currency_code || bodyData.curr;
             }
         }
 
-        if (!price && req.query) {
-            price = req.query.price;
-            orderId = req.query.orderId || req.query.id;
-            currency = req.query.currency || req.query.currency_code || req.query.curr;
+        if ((!price || !currency) && req.query) {
+            if (!price) price = req.query.price || req.query.amount;
+            if (!orderId) orderId = req.query.orderId || req.query.id || req.query.order_id;
+            if (!currency) currency = req.query.currency || req.query.currency_code || req.query.curr;
         }
     } catch (e) {
         console.error("Parametre okuma hatasi:", e);
     }
 
     const rawPrice = parseFloat(price) || 5.00;
-    
-    // Eğer Komerza'dan para birimi gelmezse varsayılan olarak USD alıyoruz
-    const cur = (currency ? String(currency) : "USD").toUpperCase();
+    const cur = currency && typeof currency === 'string' && currency.trim() !== '' ? currency.trim().toUpperCase() : 'USD';
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
@@ -71,11 +70,11 @@ module.exports = async function handler(req, res) {
         const botpayReq = https.request(options, (botpayRes) => {
             let data = '';
 
-            botpayRes.on('data', (chunk) => {
+            botpayReq.on('data', (chunk) => {
                 data += chunk;
             });
 
-            botpayRes.on('end', () => {
+            botpayReq.on('end', () => {
                 try {
                     const jsonResponse = JSON.parse(data);
                     const paymentUrl = jsonResponse.payment_url;
