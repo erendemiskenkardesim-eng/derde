@@ -46,7 +46,6 @@ module.exports = async function handler(req, res) {
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
-    // Kılavuzdaki /create-link komutuna uygun endpoint ve payload yapısı
     const postData = JSON.stringify({
         api_key: BOTPAY_API_KEY,
         amount: parseFloat(price),
@@ -54,6 +53,7 @@ module.exports = async function handler(req, res) {
         description: "Order #" + (orderId || Date.now())
     });
 
+    // BotPay entegrasyonu için doğru endpoint yolu
     const options = {
         hostname: 'api.botpay.com',
         port: 443,
@@ -74,28 +74,28 @@ module.exports = async function handler(req, res) {
             });
 
             botpayRes.on('end', () => {
+                console.log("BOTPAY_STATUS:", botpayRes.statusCode);
+                console.log("BOTPAY_RESPONSE:", data);
+
                 try {
                     const jsonResponse = JSON.parse(data);
-
                     if (botpayRes.statusCode >= 200 && botpayRes.statusCode < 300) {
                         res.status(200).json(jsonResponse);
                     } else {
-                        console.error("BotPay API Hatasi:", data);
-                        res.status(400).json({
-                            success: false,
-                            message: jsonResponse.message || jsonResponse.error || "BotPay istegi reddetti.",
-                            botpayResponse: jsonResponse
+                        res.status(500).json({ 
+                            success: false, 
+                            message: "BotPay hata döndü: " + (jsonResponse.message || data) 
                         });
                     }
-                } catch (parseErr) {
-                    res.status(500).json({ success: false, message: "BotPay ham yanit: " + data });
+                } catch (e) {
+                    res.status(500).json({ success: false, message: "BotPay geçersiz yanıt verdi: " + data });
                 }
                 resolve();
             });
         });
 
         botpayReq.on('error', (err) => {
-            res.status(500).json({ success: false, message: "BotPay Baglanti Hatasi: " + err.message });
+            res.status(500).json({ success: false, message: "Bağlantı hatası: " + err.message });
             resolve();
         });
 
