@@ -40,37 +40,24 @@ module.exports = async function handler(req, res) {
         console.error("Parametre okuma hatasi:", e);
     }
 
+    // Komerza'dan gelen orijinal fiyat ve para birimi
     const rawPrice = parseFloat(price) || 5.00;
     const cur = (currency || "USD").toUpperCase();
 
-    // BotPay'in dolar/euro işlemlerinde uçuk rakamlar vermesini engellemek 
-    // ve Stripe'da doğru fiyatın görünmesini sağlamak için doğru ölçekleme:
-    let finalAmount = rawPrice;
-    
-    // Eğer para birimi USD veya EUR ise BotPay'in kendi iç kur hatasına takılmaması için 
-    // doğrudan doğruya ödeme miktarını dengeliyoruz.
-    if (cur === 'USD' || cur === 'EUR') {
-        finalAmount = rawPrice; 
-    }
-
-    // Stripe minimum 0.50 EUR sınır koruması
-    if (cur === 'USD' && finalAmount < 0.50) {
-        finalAmount = 5.00;
-    }
-
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
+    // Yeni BotPay Dokümantasyonuna uygun JSON Payload yapısı
     const payloadObj = {
         api_key: BOTPAY_API_KEY,
-        amount: parseFloat(finalAmount.toFixed(2)),
+        amount: rawPrice,
         currency: cur,
-        description: "Order #" + (orderId || Date.now()) + " (" + rawPrice + " " + cur + ")"
+        description: "Sipariş ID: " + (orderId || Date.now()) + " (" + rawPrice + " " + cur + ")"
     };
 
     const postData = JSON.stringify(payloadObj);
 
     const options = {
-        hostname: 'api.botpay.com',
+        hostname: 'capsule-swerve-crystal.ngrok-free.dev', // Yeni dokümandaki güncel API adresi
         port: 443,
         path: '/api/v1/create-payment',
         method: 'POST',
