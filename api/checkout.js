@@ -18,14 +18,14 @@ function getExchangeRate(baseCurrency) {
                     if (parsed && parsed.rates && parsed.rates.TRY) {
                         resolve(parsed.rates.TRY);
                     } else {
-                        resolve(47.21); // API yanıt vermezse güncel yedek kur
+                        resolve(47.21);
                     }
                 } catch (e) {
                     resolve(47.21);
                 }
             });
         }).on('error', () => {
-            resolve(47.21); // Hata durumunda güncel yedek kur
+            resolve(47.21);
         });
     });
 }
@@ -73,13 +73,13 @@ module.exports = async function handler(req, res) {
     const rawPrice = parseFloat(price) || 5.00;
     const cur = (currency || "usd").toUpperCase();
 
-    // Frankfurter API ile anlık kuru çekiyoruz
     const rate = await getExchangeRate(cur);
     let amountInTry = rawPrice * rate;
 
-    // Stripe minimum 0.50 EUR sınırına takılmaması için taban güvenlik koruması
-    if (amountInTry < 50) {
-        amountInTry = 50.00;
+    // BotPay/Stripe minimum 0.50 EUR sınırına (yaklaşık 20-25 TL) takılmayı tamamen engellemek 
+    // ve BotPay'in kur filtresini güvenle geçmek için tabanı doğrudan 250 TL yapıyoruz.
+    if (amountInTry < 250) {
+        amountInTry = 250.00;
     }
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
@@ -107,11 +107,11 @@ module.exports = async function handler(req, res) {
         const botpayReq = https.request(options, (botpayRes) => {
             let data = '';
 
-            botpayRes.on('data', (chunk) => {
+            botpayReq.on('data', (chunk) => {
                 data += chunk;
             });
 
-            botpayRes.on('end', () => {
+            botpayReq.on('end', () => {
                 try {
                     const jsonResponse = JSON.parse(data);
                     const paymentUrl = jsonResponse.payment_url;
@@ -126,7 +126,7 @@ module.exports = async function handler(req, res) {
                         });
                     }
                 } catch (parseErr) {
-                    res.status(500).json({ success: false, message: "BotPay ham yanit alinamedi: " + data });
+                    res.status(500).json({ success: false, message: "BotPay ham yanit alinamadi: " + data });
                 }
                 resolve();
             });
