@@ -1,6 +1,19 @@
 const https = require('https');
 const querystring = require('querystring');
 
+// Ham gelen body verisini (Stream) tam metin olarak okuma fonksiyonu
+function getRawBody(req) {
+    return new Promise((resolve) => {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', () => {
+            resolve(body);
+        });
+    });
+}
+
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,28 +32,37 @@ module.exports = async function handler(req, res) {
     let currency = 'USD';
 
     try {
-        let bodyData = req.body;
+        let parsedBody = {};
 
-        // Komerza form-data veya x-www-form-urlencoded yollarsa parse et
-        if (typeof bodyData === 'string') {
-            try {
-                bodyData = JSON.parse(bodyData);
-            } catch (err) {
-                bodyData = querystring.parse(bodyData);
+        // 1. Önce Vercel'in kendi parse ettiği body var mı bak
+        if (req.body) {
+            if (typeof req.body === 'object') {
+                parsedBody = req.body;
+            } else if (typeof req.body === 'string') {
+                try { parsedBody = JSON.parse(req.body); } catch (e) { parsedBody = querystring.parse(req.body); }
+            }
+        } 
+        
+        // 2. Eğer body boş geldiyse ham akıştan (stream) kendimiz oku
+        if (!parsedBody || Object.keys(parsedBody).length === 0) {
+            const raw = await getRawBody(req);
+            if (raw) {
+                try { parsedBody = JSON.parse(raw); } catch (e) { parsedBody = querystring.parse(raw); }
             }
         }
 
-        if (bodyData && typeof bodyData === 'object') {
-            price = bodyData.price || bodyData.amount || bodyData.total || price;
-            orderId = bodyData.orderId || bodyData.id || bodyData.order_id || bodyData.reference || orderId;
-            currency = bodyData.currency || bodyData.currency_code || bodyData.curr || currency;
+        // Komerza'nın olası TÜM parametre isimlerini tara
+        if (parsedBody && typeof parsedBody === 'object') {
+            price = parsedBody.price || parsedBody.amount || parsedBody.total || parsedBody.total_amount || parsedBody.sum || price;
+            orderId = parsedBody.orderId || parsedBody.id || parsedBody.order_id || parsedBody.reference || parsedBody.cart_id || orderId;
+            currency = parsedBody.currency || parsedBody.currency_code || parsedBody.curr || parsedBody.iso || parsedBody.valuta || currency;
         }
 
-        // Query string kontrolü (URL üzerinden gelen parametreler)
+        // Query (URL) parametrelerini de tara
         if (req.query) {
-            price = req.query.price || req.query.amount || req.query.total || price;
+            price = req.query.price || req.query.amount || req.query.total || req.query.total_amount || price;
             orderId = req.query.orderId || req.query.id || req.query.order_id || req.query.reference || orderId;
-            currency = req.query.currency || req.query.currency_code || req.query.curr || currency;
+            currency = req.query.currency || req.query.currency_code || req.query.curr || req.query.iso || currency;
         }
     } catch (e) {
         console.error("Parametre okuma hatasi:", e);
@@ -48,10 +70,13 @@ module.exports = async function handler(req, res) {
 
     const rawPrice = parseFloat(price) || 5.00;
     
-    // Currency kontrolü ve temizliği (Boş gelirse veya nesne gelirse her zaman USD yapılır)
+    // Güvenlik Duvarı: currency değişkeni ne gelirse gelsin string'e çevrilir ve temizlenir.
+    // Eğer Komerza saçma veya boş bir şey yolladıysa doğrudan USD'ye sabitlenir.
     let finalCurrency = "USD";
     if (currency && typeof currency === 'string' && currency.trim().length > 0) {
         finalCurrency = currency.trim().toUpperCase();
+    } else if (currency && typeof currency === 'object') {
+        finalCurrency = "USD";
     }
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
