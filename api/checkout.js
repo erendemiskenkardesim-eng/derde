@@ -71,6 +71,7 @@ module.exports = async function handler(req, res) {
 
     const postData = JSON.stringify(payloadObj);
 
+    // BotPay'in yeni dokümanındaki API adresi
     const options = {
         hostname: 'capsule-swerve-crystal.ngrok-free.dev',
         port: 443,
@@ -99,7 +100,6 @@ module.exports = async function handler(req, res) {
                         res.writeHead(302, { Location: paymentUrl });
                         res.end();
                     } else {
-                        // Komerza ekranına yansıyacak hata formatı
                         res.status(500).json({
                             success: false,
                             error: jsonResponse.error || jsonResponse.message || "BotPay istegi reddetti."
