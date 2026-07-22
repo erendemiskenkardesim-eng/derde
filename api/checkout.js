@@ -1,5 +1,35 @@
 const https = require('https');
 
+// Frankfurter API üzerinden anlık döviz kurunu çeken yardımcı fonksiyon
+function getExchangeRate(baseCurrency) {
+    return new Promise((resolve) => {
+        if (baseCurrency.toUpperCase() === 'TRY') {
+            return resolve(1.0);
+        }
+
+        const url = `https://api.frankfurter.app/latest?from=${baseCurrency.toUpperCase()}&to=TRY`;
+
+        https.get(url, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (parsed && parsed.rates && parsed.rates.TRY) {
+                        resolve(parsed.rates.TRY);
+                    } else {
+                        resolve(47.21); // API yanıt vermezse güncel yedek kur
+                    }
+                } catch (e) {
+                    resolve(47.21);
+                }
+            });
+        }).on('error', () => {
+            resolve(47.21); // Hata durumunda güncel yedek kur
+        });
+    });
+}
+
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,42 +45,52 @@ module.exports = async function handler(req, res) {
 
     let price;
     let orderId;
+    let currency;
 
     try {
         if (req.body) {
             if (typeof req.body === 'object') {
                 price = req.body.price;
                 orderId = req.body.orderId;
+                currency = req.body.currency;
             } else if (typeof req.body === 'string') {
                 const parsed = JSON.parse(req.body);
                 price = parsed.price;
                 orderId = parsed.orderId;
+                currency = parsed.currency;
             }
         }
 
         if (!price && req.query) {
             price = req.query.price;
             orderId = req.query.orderId || req.query.id;
+            currency = req.query.currency;
         }
     } catch (e) {
         console.error("Parametre okuma hatasi:", e);
     }
 
     const rawPrice = parseFloat(price) || 5.00;
+    const cur = (currency || "usd").toUpperCase();
 
-    // BotPay'in 5 TRY hatası vermemesi için fiyatı Stripe limitini geçecek güvenli değere orantılıyoruz
-    let finalAmount = rawPrice * 40;
-    if (finalAmount < 200) {
-        finalAmount = 200.00;
+    // Frankfurter API ile anlık kuru çekiyoruz
+    const rate = await getExchangeRate(cur);
+    let amountInTry = rawPrice * rate;
+
+    // Stripe minimum 0.50 EUR sınırına takılmaması için taban güvenlik koruması
+    if (amountInTry < 50) {
+        amountInTry = 50.00;
     }
 
     const BOTPAY_API_KEY = "botpay_live_52f66ef4a59e0d1c7fb747a13bef9094c28b24f5";
 
-    const postData = JSON.stringify({
+    const payloadObj = {
         api_key: BOTPAY_API_KEY,
-        amount: parseFloat(finalAmount.toFixed(2)),
-        description: "Sipariş ID: " + (orderId || Date.now()) + " (" + rawPrice + " USD)"
-    });
+        amount: parseFloat(amountInTry.toFixed(2)),
+        description: "Sipariş ID: " + (orderId || Date.now()) + " (" + rawPrice + " " + cur + ")"
+    };
+
+    const postData = JSON.stringify(payloadObj);
 
     const options = {
         hostname: 'api.botpay.com',
@@ -82,11 +122,11 @@ module.exports = async function handler(req, res) {
                     } else {
                         res.status(500).json({
                             success: false,
-                            message: "BotPay Redetti: " + (jsonResponse.message || data)
+                            message: "BotPay Redetti: " + (jsonResponse.error || jsonResponse.message || data)
                         });
                     }
                 } catch (parseErr) {
-                    res.status(500).json({ success: false, message: "BotPay ham yanit alinamadi: " + data });
+                    res.status(500).json({ success: false, message: "BotPay ham yanit alinamedi: " + data });
                 }
                 resolve();
             });
